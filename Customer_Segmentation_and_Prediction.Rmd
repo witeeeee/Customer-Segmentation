@@ -1,0 +1,289 @@
+---
+title: "Customer Segmentation"
+author: "20BCE1353"
+date: "2023-03-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+data <- read.csv("customer.csv")
+
+head(data)
+```
+
+```{r}
+library(Hmisc)
+describe(data)
+```
+
+### Dropping the unnecessary column Var_1
+```{r}
+drops <- c("Var_1")
+data <- data[ ,!(names(data) %in% drops)]
+
+head(data)
+```
+### Checking for missing values
+```{r}
+#handling blank values and NA values:
+data[data==""] <- NA
+
+lapply(data, function(x) {length(which(is.na(x)))})
+```
+Attributes Ever_Married, Graduated, Profession, Work_Experience, and Family_Size have missing values. Ever_Married, Graduated and Profession are categorical variables. Work_Experience and Family_Size are numeric. 
+
+```{r}
+getmode <- function(v) {
+    uniqv <- unique(v)
+    uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+### Replacing with mode for categorical and mean for continuous
+```{r}
+data$Ever_Married[is.na(data$Ever_Married)] <- getmode(data$Ever_Married)
+data$Graduated[is.na(data$Graduated)] <- getmode(data$Graduated)
+data$Profession[is.na(data$Profession)] <- getmode(data$Profession)
+data$Work_Experience[is.na(data$Work_Experience)] <-mean(data$Work_Experience, na.rm = TRUE)
+data$Family_Size[is.na(data$Family_Size)]<-mean(data$Family_Size,na.rm=TRUE)
+```
+
+### Exploratory Data Analysis
+```{r}
+boxplot(data$Age, horizontal = TRUE,col = 'Purple',main="Age")
+boxplot(data$Work_Experience, horizontal = TRUE,col = 'Orange',main="Work Ex")
+boxplot(data$Family_Size, horizontal = TRUE,col = 'Blue',main="Family Size")
+```
+
+```{r}
+library(ggplot2)
+ggplot(data) + geom_bar(aes(x = Gender))
+ggplot(data) + geom_bar(aes(x = Ever_Married))
+ggplot(data) + geom_bar(aes(x = Graduated))
+ggplot(data) + geom_bar(aes(x = Profession))
+ggplot(data) + geom_bar(aes(x = Spending_Score))
+```
+
+### Encoding categorical values using One Hot encoding
+```{r}
+library(fastDummies)
+cluster_data<-dummy_cols(data)
+
+cat <- c("ID","Gender","Ever_Married","Graduated","Profession","Spending_Score")
+cluster_data<-cluster_data[ , !(names(cluster_data) %in% cat)]
+
+head(cluster_data)
+```
+
+```{r}
+library(cluster)
+library(factoextra)
+```
+
+### Elbow Plot
+```{r}
+fviz_nbclust(cluster_data, kmeans, method = "wss")
+```
+
+From the elbow plot, we observe an elbow at k = 3 clusters for k means clustering.  
+
+### K-Means clustering with K = 3
+```{r}
+set.seed(240) # Setting seed
+kmeans_1 <- kmeans(cluster_data, centers = 3, nstart = 20)
+
+table(kmeans_1$cluster)
+```
+```{r}
+data$cluster<-kmeans_1$cluster
+
+cluster_data$cluster <- kmeans_1$cluster
+
+head(data)
+```
+
+### Hierarchical Clustering
+```{r}
+set.seed(240)
+
+d <- dist(cluster_data, method = "euclidian")
+hclus_1 <- hclust(d, method = "complete")
+
+fviz_dend(hclus_1, k = 3, cex = 0.6)
+```
+
+```{r}
+hclust_fit <- cutree(hclus_1, k = 3)
+table(hclust_fit)
+```
+
+```{r}
+data$hcluster<-hclust_fit
+
+cluster_data$hcluster <- hclust_fit
+```
+
+### Visualizing cluster separation by pairs of attributes
+```{r}
+y_kmeans <- kmeans_1$cluster
+
+# Visualizing segments in terms of Work experience and Age
+clusplot(data[, c("Age", "Work_Experience")],
+         y_kmeans,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0, # To remove data labels from the plot
+         plotchar = TRUE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Age',
+         ylab = 'Work_Experience')
+```
+
+
+When viewing data points based on age and work experience, we can see that the clusters are divided in different age groups
+
+```{r}
+clusplot(data[, c("Family_Size", "Work_Experience")],
+         y_kmeans,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Work_Experience')
+```
+
+Here we observe overlapping clusters which means that these Work Experience and Family Size are not attributes that strongly define a cluster. 
+
+```{r}
+clusplot(data[, c("Family_Size", "Age")],
+         y_kmeans,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Age')
+```
+
+Here it is observed that Family Size also varies in each cluster across multiple age groups. 
+
+```{r}
+data %>% group_by(cluster) %>% 
+  summarise(Mean_Age=mean(Age), Work_Experience=mean(Work_Experience),Family_Size=mean(Family_Size),
+            Graduated=getmode(Graduated),Gender=getmode(Gender),
+       Married=getmode(Ever_Married),Profession=getmode(Profession),
+            Spend=getmode(Spending_Score))
+```
+From the summary of the clusters, we can observe that, yes, the average age is different for all three clusters. The youngest group also has more participants who are unmarried and not yet graduated. 
+
+```{r}
+y_hclust <- hclust_fit
+
+# Visualizing segments in terms of Work experience and Age
+clusplot(data[, c("Age", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0, # To remove data labels from the plot
+         plotchar = TRUE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Age',
+         ylab = 'Work_Experience')
+```
+
+```{r}
+clusplot(data[, c("Family_Size", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Work_Experience')
+```
+
+```{r}
+clusplot(data[, c("Family_Size", "Age")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Age')
+```
+Summary of each cluster as clustered by hierarchical clustering
+```{r}
+data %>% group_by(hcluster) %>% 
+  summarise(Mean_Age=mean(Age), Work_Experience=mean(Work_Experience),Family_Size=mean(Family_Size),
+            Graduated=getmode(Graduated),Gender=getmode(Gender),
+       Married=getmode(Ever_Married),Profession=getmode(Profession),
+            Spend=getmode(Spending_Score))
+```
+It is observed that, similar to K-means clustering, age is a primary factor for cluster differentiation. In this case, it is observed that people in one of the clusters (highest age group) has higher spending patterns than other groups.  
+
+```{r}
+head(data)
+```
+
+### Training models to predict what cluster a user belongs to. 
+```{r}
+library(caTools)
+
+split <- sample.split(cluster_data, SplitRatio = 0.8)
+train <- cluster_data[split, ]
+test <- cluster_data[!split, ]
+
+dim(train)
+dim(test)
+```
+
+### KNN
+```{r}
+library(class)
+library(e1071)
+
+scaled_train <- scale(train[, 1:21])
+scaled_test <- scale(test[, 1:21])
+
+y_pred <- knn(train = scaled_train, test = scaled_test, cl = train$hcluster, k = 1)
+```
+
+```{r}
+confusion_matrix <- table(test$hcluster, y_pred)
+confusion_matrix
+```
+
+```{r}
+classerr <- mean(y_pred != test$hcluster)
+paste("Accuracy", 1-classerr)
+```
+### Naive Bayes
+```{r}
+
+```
