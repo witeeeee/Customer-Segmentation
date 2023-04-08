@@ -15,7 +15,6 @@ library(dplyr)
 
 ```{r}
 data <- read.csv("customer.csv")
-
 head(data)
 ```
 
@@ -63,14 +62,20 @@ boxplot(data$Work_Experience, horizontal = TRUE,col = 'Orange',main="Work Ex")
 boxplot(data$Family_Size, horizontal = TRUE,col = 'Blue',main="Family Size")
 ```
 
+Mean age of the whole dataset is just above 40  
+Mean work experience is just under 1 year  
+Mean family size is just under 3 
+
 ```{r}
 library(ggplot2)
-ggplot(data) + geom_bar(aes(x = Gender))
-ggplot(data) + geom_bar(aes(x = Ever_Married))
-ggplot(data) + geom_bar(aes(x = Graduated))
-ggplot(data) + geom_bar(aes(x = Profession))
-ggplot(data) + geom_bar(aes(x = Spending_Score))
+ggplot(data) + geom_bar(aes(x = Gender, fill = Gender))
+ggplot(data) + geom_bar(aes(x = Ever_Married, fill = Ever_Married))
+ggplot(data) + geom_bar(aes(x = Graduated, fill = Graduated))
+ggplot(data) + geom_bar(aes(x = Profession, fill = Profession))
+ggplot(data) + geom_bar(aes(x = Spending_Score, fill = Spending_Score))
 ```
+The data set is fairly balanced with 20-30% more Male customers than Female, mostly married individuals, majority graduated education, with a high number of individuals who work as an "Artist".  
+Most customers also tend to spend less in general. 
 
 ### Encoding categorical values using One Hot encoding
 ```{r}
@@ -82,7 +87,9 @@ cluster_data<-cluster_data[ , !(names(cluster_data) %in% cat)]
 
 head(cluster_data)
 ```
+Now, the categorical variables are encoded to a numeric type that makes it easy for unsupervised learning algorithms to use. 
 
+# Clustering the customers into different groups using multiple clustering algorithms
 ```{r}
 library(cluster)
 library(factoextra)
@@ -95,22 +102,19 @@ fviz_nbclust(cluster_data, kmeans, method = "wss")
 
 From the elbow plot, we observe an elbow at k = 3 clusters for k means clustering.  
 
-### K-Means clustering with K = 3
+### 1. K-Means clustering with K = 3
 ```{r}
 set.seed(240) # Setting seed
 kmeans_1 <- kmeans(cluster_data, centers = 3, nstart = 20)
 
 table(kmeans_1$cluster)
 ```
+
 ```{r}
 data$cluster<-kmeans_1$cluster
-
-cluster_data$cluster <- kmeans_1$cluster
-
-head(data)
 ```
 
-### Hierarchical Clustering
+### 2. Hierarchical Clustering - using Complete linkage
 ```{r}
 set.seed(240)
 
@@ -127,32 +131,47 @@ table(hclust_fit)
 
 ```{r}
 data$hcluster<-hclust_fit
+```
 
-cluster_data$hcluster <- hclust_fit
+```{r}
+library(ppclust)
+```
+
+### 3. Fuzzy C-Means Clustering
+```{r}
+fcm_fit <- fcm(cluster_data, centers= 3)
+table(fcm_fit$cluster)
+```
+
+```{r}
+data$fcmcluster <- fcm_fit$cluster
+```
+### 4. K-Medoids Clustering
+```{r}
+pam_fit <- pam(cluster_data, k = 3)
+table(pam_fit$clustering)
+```
+
+```{r}
+data$pamcluster <- pam_fit$cluster
 ```
 
 ### Visualizing cluster separation by pairs of attributes
 ```{r}
 y_kmeans <- kmeans_1$cluster
 
-# Visualizing segments in terms of Work experience and Age
 clusplot(data[, c("Age", "Work_Experience")],
          y_kmeans,
          lines = 0,
          shade = TRUE,
          color = TRUE,
-         labels = 0, # To remove data labels from the plot
+         labels = 0, 
          plotchar = TRUE,
          span = TRUE,
          main = paste("Customer Segments"),
          xlab = 'Age',
          ylab = 'Work_Experience')
-```
 
-
-When viewing data points based on age and work experience, we can see that the clusters are divided in different age groups
-
-```{r}
 clusplot(data[, c("Family_Size", "Work_Experience")],
          y_kmeans,
          lines = 0,
@@ -164,11 +183,7 @@ clusplot(data[, c("Family_Size", "Work_Experience")],
          main = paste("Customer Segments"),
          xlab = 'Family_Size',
          ylab = 'Work_Experience')
-```
 
-Here we observe overlapping clusters which means that these Work Experience and Family Size are not attributes that strongly define a cluster. 
-
-```{r}
 clusplot(data[, c("Family_Size", "Age")],
          y_kmeans,
          lines = 0,
@@ -182,6 +197,8 @@ clusplot(data[, c("Family_Size", "Age")],
          ylab = 'Age')
 ```
 
+When viewing data points based on age and work experience, we can see that the clusters are divided in different age groups
+Here we observe overlapping clusters which means that these Work Experience and Family Size are not attributes that strongly define a cluster. 
 Here it is observed that Family Size also varies in each cluster across multiple age groups. 
 
 ```{r}
@@ -196,21 +213,18 @@ From the summary of the clusters, we can observe that, yes, the average age is d
 ```{r}
 y_hclust <- hclust_fit
 
-# Visualizing segments in terms of Work experience and Age
 clusplot(data[, c("Age", "Work_Experience")],
          y_hclust,
          lines = 0,
          shade = TRUE,
          color = TRUE,
-         labels = 0, # To remove data labels from the plot
+         labels = 0, 
          plotchar = TRUE,
          span = TRUE,
          main = paste("Customer Segments"),
          xlab = 'Age',
          ylab = 'Work_Experience')
-```
 
-```{r}
 clusplot(data[, c("Family_Size", "Work_Experience")],
          y_hclust,
          lines = 0,
@@ -222,9 +236,7 @@ clusplot(data[, c("Family_Size", "Work_Experience")],
          main = paste("Customer Segments"),
          xlab = 'Family_Size',
          ylab = 'Work_Experience')
-```
 
-```{r}
 clusplot(data[, c("Family_Size", "Age")],
          y_hclust,
          lines = 0,
@@ -237,6 +249,9 @@ clusplot(data[, c("Family_Size", "Age")],
          xlab = 'Family_Size',
          ylab = 'Age')
 ```
+
+Visually, the clusters formed are pretty similar with similar conclusions to k-means clustering. 
+
 Summary of each cluster as clustered by hierarchical clustering
 ```{r}
 data %>% group_by(hcluster) %>% 
@@ -245,15 +260,172 @@ data %>% group_by(hcluster) %>%
        Married=getmode(Ever_Married),Profession=getmode(Profession),
             Spend=getmode(Spending_Score))
 ```
-It is observed that, similar to K-means clustering, age is a primary factor for cluster differentiation. In this case, it is observed that people in one of the clusters (highest age group) has higher spending patterns than other groups.  
+It is observed that, similar to K-means clustering, age is a primary factor for cluster differentiation. In this case, it is observed that people in one of the clusters (highest age group) has higher spending patterns than other groups.
+
+```{r}
+y_hclust <- fcm_fit$cluster
+
+clusplot(data[, c("Age", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0, 
+         plotchar = TRUE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Age',
+         ylab = 'Work_Experience')
+
+clusplot(data[, c("Family_Size", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Work_Experience')
+
+clusplot(data[, c("Family_Size", "Age")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Age')
+```
+
+Fuzzy C-Means clustering shows similarly separated clusters to K-Means and Hierarchical clustering. 
+
+Summary of each cluster as clustered by Fuzzy C-Means clustering
+```{r}
+data %>% group_by(fcmcluster) %>% 
+  summarise(Mean_Age=mean(Age), Work_Experience=mean(Work_Experience),Family_Size=mean(Family_Size),
+            Graduated=getmode(Graduated),Gender=getmode(Gender),
+       Married=getmode(Ever_Married),Profession=getmode(Profession),
+            Spend=getmode(Spending_Score))
+```
+Once again, Age is a primary differentiating factor for each cluster. Family size is also evenly split between each cluster. 
+
+
+```{r}
+y_hclust <- pam_fit$cluster
+
+clusplot(data[, c("Age", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0, 
+         plotchar = TRUE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Age',
+         ylab = 'Work_Experience')
+
+clusplot(data[, c("Family_Size", "Work_Experience")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Work_Experience')
+
+clusplot(data[, c("Family_Size", "Age")],
+         y_hclust,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels = 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste("Customer Segments"),
+         xlab = 'Family_Size',
+         ylab = 'Age')
+```
+
+Lastly, even K-Medoids clustering shows similar clusters for the pairs of numeric attributes chosen. 
+
+Summary of each cluster as clustered by K-Medoids clustering
+```{r}
+data %>% group_by(pamcluster) %>% 
+  summarise(Mean_Age=mean(Age), Work_Experience=mean(Work_Experience),Family_Size=mean(Family_Size),
+            Graduated=getmode(Graduated),Gender=getmode(Gender),
+       Married=getmode(Ever_Married),Profession=getmode(Profession),
+            Spend=getmode(Spending_Score))
+```
+The conclusions derived from the summary of the clusters is similar to the other clustering models. That being, Age and Family Size are the attributes that significantly vary between clusters. 
+
+# Performance metrics of the different clusters
+
+### 1. Dunn Index: 
+```{r}
+library(clValid)
+hclust_dunn <- dunn(d, hclust_fit)
+kmeans_dunn <- dunn(d, kmeans_1$cluster)
+pam_dunn <- dunn(d, pam_fit$clustering)
+fcm_dunn <- dunn(d, fcm_fit$cluster)
+```
+
+```{r}
+dunn_comparison <- matrix(c(kmeans_dunn, hclust_dunn, fcm_dunn, pam_dunn))
+rownames(dunn_comparison) <- c("KMeans", "Hclust", "Fuzzy C-Means", "KMedoids")
+colnames(dunn_comparison) <- c("Dunn Index")
+
+as.table(dunn_comparison)
+```
+The Dunn Index is the ratio of the smallest distance between observations not in the same cluster to the largest intra-cluster distance. The Dunn Index has a value between zero and infinity, and should be maximized.  
+Here, **Fuzzy C-Means** clustering shows the highest value of the Dunn Index by a small margin. 
+
+### 2. Calinski-Harabasz index
+
+```{r}
+library(fpc)
+hclust_calinhara <- calinhara(cluster_data, hclust_fit)
+kmeans_calinhara <- calinhara(cluster_data, kmeans_1$cluster)
+pam_calinhara <- calinhara(cluster_data, pam_fit$clustering)
+fcm_calinhara <- calinhara(cluster_data, fcm_fit$cluster)
+```
+
+```{r}
+calinhara_comparison <- matrix(c(kmeans_calinhara, hclust_calinhara, fcm_calinhara, pam_calinhara))
+rownames(calinhara_comparison) <- c("KMeans", "Hclust", "Fuzzy C-Means", "KMedoids")
+colnames(calinhara_comparison) <- c("Calinhara value")
+
+as.table(calinhara_comparison)
+```
+The Calinhara Index (also known as Variance ratio criterion) is a measure of how similar an object is to its own cluster (cohesion) compared to other clusters (separation). Here cohesion is estimated based on the distances from the data points in a cluster to its cluster centroid and separation is based on the distance of the cluster centroids from the global centroid. A higher value of this indicates tighter grouped clusters and more separation between clusters.  
+Here, we observe a functional tie between **Fuzzy C-Means** and **KMeans** clustering. 
+
+### The selected clustering technique is Fuzzy C-Means clustering, based on the performance metrics. 
+
+
+```{r}
+cluster_data$cluster <- kmeans_1$cluster
+cluster_data$hcluster <- hclust_fit
+cluster_data$fcmcluster <- fcm_fit$cluster
+cluster_data$pamcluster <- pam_fit$clustering
+```
 
 ```{r}
 head(data)
 ```
 
-### Training models to predict what cluster a user belongs to. 
+# Training models to predict what cluster a user belongs to. 
 ```{r}
 library(caTools)
+library(party)
 
 split <- sample.split(cluster_data, SplitRatio = 0.8)
 train <- cluster_data[split, ]
@@ -263,7 +435,7 @@ dim(train)
 dim(test)
 ```
 
-### KNN
+### 1. KNN
 ```{r}
 library(class)
 library(e1071)
@@ -271,19 +443,68 @@ library(e1071)
 scaled_train <- scale(train[, 1:21])
 scaled_test <- scale(test[, 1:21])
 
-y_pred <- knn(train = scaled_train, test = scaled_test, cl = train$hcluster, k = 1)
+y_pred <- knn(train = scaled_train, test = scaled_test, cl = train$fcmcluster, k = 1)
 ```
 
 ```{r}
-confusion_matrix <- table(test$hcluster, y_pred)
+confusion_matrix <- table(test$fcmcluster, y_pred)
 confusion_matrix
 ```
 
 ```{r}
-classerr <- mean(y_pred != test$hcluster)
-paste("Accuracy", 1-classerr)
+classerr_knn <- mean(y_pred != test$fcmcluster)
+paste("Accuracy", 1-classerr_knn)
 ```
-### Naive Bayes
+### 2. Naive Bayes
 ```{r}
+nbInput <- as.data.frame(scaled_train)
+nbInput$y <- train$hcluster
 
+nbModel <- naiveBayes(y~., data = nbInput)
 ```
+
+```{r}
+predictNb <- predict(nbModel, as.data.frame(scaled_test))
+table(predictNb, test$fcmcluster)
+```
+
+```{r}
+classerr_nb <- mean(predictNb != test$fcmcluster)
+paste("Accuracy: ", 1-classerr_nb)
+```
+
+### 3. Decision Tree
+```{r}
+nbInput$y <- factor(nbInput$y)
+dtModel <- ctree(y~., data = nbInput)
+predictdt <- predict(dtModel, as.data.frame(scaled_test))
+table(predictdt, test$fcmcluster)
+```
+
+```{r}
+classerr_dt <- mean(predictdt != test$fcmcluster)
+paste("Accuracy", 1-classerr_dt)
+```
+
+### 4. SVM Classifier
+```{r}
+svmModel <- svm(y~., data = nbInput, type = 'C-classification', kernel = 'linear')
+predictsvm <- predict(svmModel, as.data.frame(scaled_test))
+table(predictsvm, test$fcmcluster)
+```
+
+```{r}
+classerr_svm <- mean(predictsvm != test$fcmcluster)
+paste("Accuracy", 1-classerr_svm)
+```
+
+### Comparing accuracy of each of the four models
+```{r}
+accuracy_comparison <- matrix(1-c(classerr_knn, classerr_nb, classerr_dt, classerr_svm))
+rownames(accuracy_comparison) <- c("KNN", "Naive Bayes", "Decision Tree", "SVM")
+colnames(accuracy_comparison) <- c("Accuracy")
+
+as.table(accuracy_comparison)
+```
+
+It is observed that the **K Nearest Neighbors** model has the highest accuracy. Therefore, this model is the chosen model for this application. 
